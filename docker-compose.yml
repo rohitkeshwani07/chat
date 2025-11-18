@@ -58,6 +58,28 @@ services:
     networks:
       - chat-network
 
+  # Database Migration Service
+  migrate:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: chat-migrate
+    command: ["./migrate", "up"]
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      DB_NAME: ${DB_NAME:-chat}
+      DB_SSLMODE: disable
+      MIGRATIONS_PATH: file:///migrations
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - chat-network
+    restart: "no"
+
   # Demo Workflow Service (LangGraph)
   workflow:
     build:
@@ -121,6 +143,8 @@ services:
         condition: service_healthy
       nats:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health"]
       interval: 15s
@@ -168,6 +192,8 @@ services:
         condition: service_healthy
       nats:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health"]
       interval: 15s
@@ -215,6 +241,8 @@ services:
         condition: service_healthy
       nats:
         condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health"]
       interval: 15s
