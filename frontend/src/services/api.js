@@ -1,8 +1,9 @@
 /**
  * API Client for Chat Backend
+ * Using relative URLs - nginx will proxy to backend
  */
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost';
+const API_BASE_URL = process.env.REACT_APP_API_URL || '';
 
 /**
  * Submit a chat message
