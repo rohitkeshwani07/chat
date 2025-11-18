@@ -60,6 +60,32 @@ services:
     networks:
       - chat-network
 
+  # Demo Workflow Service (LangGraph)
+  workflow:
+    build:
+      context: ./demo-langgraph-workflow
+      dockerfile: Dockerfile
+    container_name: chat-workflow
+    environment:
+      NATS_URL: nats://nats:4222
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+    depends_on:
+      nats:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - chat-network
+
   # Backend Service - Pod 1
   backend-1:
     build:

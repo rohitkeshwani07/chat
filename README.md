@@ -47,6 +47,7 @@ docker-compose down
 This will start:
 - **3 Backend Pods** (ports 8081, 8082, 8083)
 - **Nginx Load Balancer** (port 80)
+- **Demo Workflow Service** (LangGraph simulation)
 - **PostgreSQL** (port 5432)
 - **Redis** (port 6379)
 - **NATS** (port 4222)
@@ -125,6 +126,16 @@ Complete system design documentation:
 - Database schemas
 - NATS messaging patterns
 - Chunk buffering and ordering
+
+### Workflow Service (`/demo-langgraph-workflow`)
+Demo Python service that:
+- Subscribes to workflow requests from NATS
+- Simulates AI response generation (streaming chunks)
+- Queries Redis to find active backend pods
+- Publishes response chunks back to appropriate pods
+- Demonstrates complete end-to-end message flow
+
+In production, this would integrate with LangGraph and real LLM APIs.
 
 ### Frontend (`/frontend`)
 React-based chat interface (coming soon)
