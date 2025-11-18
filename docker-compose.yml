@@ -225,7 +225,27 @@ services:
     networks:
       - chat-network
 
-  # Nginx Load Balancer
+  # Frontend (React)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: chat-frontend
+    environment:
+      REACT_APP_API_URL: http://localhost
+    ports:
+      - "3000:80"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - chat-network
+
+  # Nginx Load Balancer (Backend API)
   nginx:
     image: nginx:alpine
     container_name: chat-nginx
