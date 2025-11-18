@@ -117,12 +117,38 @@ go build -o bin/server cmd/server/main.go
 ./bin/server
 ```
 
-### Docker (Coming Soon)
+### Docker
+
+Build and run with Docker:
 
 ```bash
+# Build image
 docker build -t chat-backend .
-docker run -p 8080:8080 chat-backend
+
+# Run with environment variables
+docker run -p 8080:8080 \
+  -e REDIS_HOST=redis \
+  -e NATS_URL=nats://nats:4222 \
+  -e DB_HOST=postgres \
+  chat-backend
 ```
+
+### Docker Compose (Recommended)
+
+Run the entire system with all dependencies:
+
+```bash
+# From project root
+docker-compose up -d
+
+# View backend logs
+docker-compose logs -f backend-1 backend-2 backend-3
+
+# Scale backend pods
+docker-compose up -d --scale backend-1=5
+```
+
+See root `README.md` for complete Docker Compose instructions.
 
 ## API Endpoints
 

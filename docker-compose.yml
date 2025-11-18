@@ -1,0 +1,232 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: chat-postgres
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_NAME:-chat}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - chat-network
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: chat-redis
+    command: redis-server --appendonly yes
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - chat-network
+
+  # NATS Message Broker
+  nats:
+    image: nats:2.10-alpine
+    container_name: chat-nats
+    command:
+      - "-js"
+      - "-m"
+      - "8222"
+    ports:
+      - "${NATS_PORT:-4222}:4222"  # Client connections
+      - "8222:8222"                 # HTTP monitoring
+      - "6222:6222"                 # Cluster connections
+    volumes:
+      - nats_data:/data
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8222/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - chat-network
+
+  # Backend Service - Pod 1
+  backend-1:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: chat-backend-1
+    environment:
+      SERVER_HOST: 0.0.0.0
+      SERVER_PORT: 8080
+      POD_ID: pod-1
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      DB_NAME: ${DB_NAME:-chat}
+      DB_SSLMODE: disable
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      REDIS_DB: 0
+      NATS_URL: nats://nats:4222
+      NATS_MAX_RECONNECTS: -1
+      NATS_RECONNECT_WAIT: 2s
+      BUFFER_MAX_BUFFERS: 10000
+      BUFFER_MAX_CHUNKS: 10000
+      BUFFER_MAX_AGE: 5m
+      BUFFER_CLEANUP_INTERVAL: 30s
+      BUFFER_MISSING_CHUNK_TIMEOUT: 30s
+    ports:
+      - "8081:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - chat-network
+
+  # Backend Service - Pod 2
+  backend-2:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: chat-backend-2
+    environment:
+      SERVER_HOST: 0.0.0.0
+      SERVER_PORT: 8080
+      POD_ID: pod-2
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      DB_NAME: ${DB_NAME:-chat}
+      DB_SSLMODE: disable
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      REDIS_DB: 0
+      NATS_URL: nats://nats:4222
+      NATS_MAX_RECONNECTS: -1
+      NATS_RECONNECT_WAIT: 2s
+      BUFFER_MAX_BUFFERS: 10000
+      BUFFER_MAX_CHUNKS: 10000
+      BUFFER_MAX_AGE: 5m
+      BUFFER_CLEANUP_INTERVAL: 30s
+      BUFFER_MISSING_CHUNK_TIMEOUT: 30s
+    ports:
+      - "8082:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - chat-network
+
+  # Backend Service - Pod 3
+  backend-3:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: chat-backend-3
+    environment:
+      SERVER_HOST: 0.0.0.0
+      SERVER_PORT: 8080
+      POD_ID: pod-3
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      DB_NAME: ${DB_NAME:-chat}
+      DB_SSLMODE: disable
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      REDIS_DB: 0
+      NATS_URL: nats://nats:4222
+      NATS_MAX_RECONNECTS: -1
+      NATS_RECONNECT_WAIT: 2s
+      BUFFER_MAX_BUFFERS: 10000
+      BUFFER_MAX_CHUNKS: 10000
+      BUFFER_MAX_AGE: 5m
+      BUFFER_CLEANUP_INTERVAL: 30s
+      BUFFER_MISSING_CHUNK_TIMEOUT: 30s
+    ports:
+      - "8083:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - chat-network
+
+  # Nginx Load Balancer
+  nginx:
+    image: nginx:alpine
+    container_name: chat-nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - backend-1
+      - backend-2
+      - backend-3
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - chat-network
+
+networks:
+  chat-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  nats_data:
