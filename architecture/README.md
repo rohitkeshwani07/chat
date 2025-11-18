@@ -49,6 +49,17 @@ In-depth guide to NATS messaging patterns:
 
 **Reference this** when implementing NATS publishers/subscribers or debugging message flow.
 
+### [Chunk Buffering and Ordering](./chunk-buffering.md)
+Detailed implementation guide for handling streaming response chunks:
+- Memory-first buffering strategy (no DB writes until completion)
+- Out-of-order chunk handling with reordering logic
+- In-memory buffer data structures and algorithms
+- Atomic database persistence only after final chunk
+- Timeout handling, cleanup, and memory management
+- Complete code examples and test cases
+
+**Critical for** implementing response streaming and ensuring correct message delivery despite NATS ordering issues.
+
 ## System Architecture Diagram
 
 ```

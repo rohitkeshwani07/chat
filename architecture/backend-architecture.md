@@ -170,8 +170,10 @@ The backend is designed as a highly available, distributed system that handles c
      ```
 
 3. Pod-Y receives message on `pod.pod-y.responses`:
-   - Matches `session_id` to active SSE connections
-   - Streams chunk to appropriate connection(s)
+   - **Buffers chunk in memory** (chunks stored by `chunk_id`)
+   - **Checks for ordering**: If `chunk_id` is next expected, stream to client
+   - **Handles out-of-order**: If gap detected, waits for missing chunks
+   - Streams available consecutive chunks to SSE connection(s)
    ```
    data: {"chunk": "Hello", "chunk_id": 1, "is_final": false}
    ```
@@ -179,6 +181,70 @@ The backend is designed as a highly available, distributed system that handles c
 4. Process repeats for each chunk until completion
 
 5. Final chunk sent with `is_final: true`
+
+6. **Database Persistence** (only after final chunk):
+   - Pod assembles complete message from all buffered chunks
+   - Verifies all chunks received (0 to `final_chunk_id`)
+   - **Single atomic write** to database with complete message
+   - Clears chunk buffer from memory
+   - Until final chunk, all data remains in memory only
+
+## Chunk Buffering and Ordering
+
+### Memory-First Strategy
+
+**Key Principle**: Chunks are buffered in memory until the complete message is received, then persisted atomically to the database.
+
+**Benefits**:
+- Reduces database write operations (1 write per message vs N writes per chunk)
+- Enables handling of out-of-order chunk delivery
+- Prevents partial messages in database
+- Faster streaming to clients (no database I/O per chunk)
+
+### Out-of-Order Handling
+
+NATS does not guarantee message ordering, especially when:
+- Multiple workflow service instances publish chunks
+- Network conditions vary between publishers and subscribers
+- Load balancing causes routing differences
+
+**Solution**: Each pod maintains an in-memory chunk buffer per active message:
+
+```go
+type ChunkBuffer struct {
+    Chunks       map[int]*ResponseChunk  // chunk_id -> chunk
+    NextToSend   int                     // next sequential chunk to stream
+    IsFinal      bool                    // final chunk received?
+    FinalChunkID int                     // chunk_id of final chunk
+}
+```
+
+**Example Flow** (chunks arrive: 3, 1, 4, 0, 5-final, 2):
+1. Chunk 3 arrives → Buffer {3}, wait (missing 0-2)
+2. Chunk 1 arrives → Buffer {1,3}, wait (missing 0)
+3. Chunk 4 arrives → Buffer {1,3,4}, wait (missing 0)
+4. Chunk 0 arrives → Buffer {0,1,3,4}, **stream 0→1 to client** (next: 2)
+5. Chunk 5 arrives (final) → Buffer {0,1,3,4,5}, wait (missing 2)
+6. Chunk 2 arrives → Buffer complete, **stream 2→3→4→5 to client**
+7. **Persist complete message to database**, clear buffer
+
+### Buffer Lifecycle
+
+1. **Creation**: When first chunk for a message arrives
+2. **Accumulation**: Chunks stored by `chunk_id`, handle duplicates gracefully
+3. **Streaming**: Send consecutive chunks starting from `NextToSend`
+4. **Completion**: When `is_final` chunk received AND all gaps filled
+5. **Persistence**: Assemble full message, write to DB atomically
+6. **Cleanup**: Remove buffer from memory
+
+### Timeout and Error Handling
+
+- **Missing Chunk Timeout**: 30 seconds max wait for missing chunks
+- **Buffer Age Limit**: Auto-cleanup buffers older than 5 minutes
+- **Memory Limits**: Maximum 10,000 concurrent buffers per pod
+- **Gap Detection**: Log warnings when chunks arrive out of order
+
+**See [Chunk Buffering Documentation](./chunk-buffering.md) for complete implementation details.**
 
 ## Session Management Strategy
 
