@@ -164,14 +164,9 @@ func (m *Manager) SendToSession(sessionID string, event *models.SSEEvent) error 
 
 // SendChunk sends a response chunk to all connections for a session
 func (m *Manager) SendChunk(sessionID string, chunk *models.ResponseChunk) error {
-	data, err := json.Marshal(chunk)
-	if err != nil {
-		return fmt.Errorf("failed to marshal chunk: %w", err)
-	}
-
 	event := &models.SSEEvent{
 		Event: "chunk",
-		Data:  string(data),
+		Data:  chunk,
 	}
 
 	return m.SendToSession(sessionID, event)
